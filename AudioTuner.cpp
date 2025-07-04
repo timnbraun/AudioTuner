@@ -27,6 +27,7 @@
 
 #define NUM_SAMPLES ( AUDIO_GUITARTUNER_BLOCKS << 7 )
 
+
 void AudioTuner::update( void ) {
     
     audio_block_t *block;
@@ -45,10 +46,11 @@ void AudioTuner::update( void ) {
      *  address.
      */
     const uint8_t factor = AUDIO_BLOCK_SAMPLES >> decimation_shift;
+
     
     // filter and decimate block by block the incoming signal and store in a buffer.
-    arm_fir_decimate_fast_q15( &firDecimateInst, block->data, AudioBuffer + ( state * factor ), AUDIO_BLOCK_SAMPLES );
-    
+    ARM_FIR_DECIMATE_(fast)( &firDecimateInst, block->data, AudioBuffer + ( state * factor ), AUDIO_BLOCK_SAMPLES );
+
     /**
      *  when half the blocks + 1 of the total
      *  blocks have been stored in the buffer
@@ -60,9 +62,11 @@ void AudioTuner::update( void ) {
         
         if ( state == 0 ) process_buffer = true;
     }
-    
+
+
     release( block );
 }
+
 
 /**
  *  Start the Yin algorithm
@@ -72,7 +76,7 @@ void AudioTuner::update( void ) {
  *  page 79. Might have to downsample for low fundmental frequencies because of fft buffer
  *  size limit.
  */
-void AudioTuner::process( int16_t *p ) {
+void AudioTuner::process( SAMPLE *p ) {
     
     const uint16_t inner_cycles = ( NUM_SAMPLES >> decimation_shift ) >> 1;
     uint16_t outer_cycles = inner_cycles / AUDIO_GUITARTUNER_BLOCKS;
@@ -82,8 +86,8 @@ void AudioTuner::process( int16_t *p ) {
         int32_t  a1, a2, b1, b2, c1, c2, d1, d2;
         int32_t  out1, out2, out3, out4;
         uint16_t blkCnt;
-        int16_t * cur = p;
-        int16_t * lag = p + tau;
+        SAMPLE * cur = p;
+        SAMPLE * lag = p + tau;
         // unrolling the inner loop by 8
         blkCnt = inner_cycles >> 3;
         do {
@@ -189,7 +193,7 @@ uint16_t AudioTuner::estimate( uint64_t *yin, uint64_t *rs, uint16_t head, uint1
  *
  *  @param threshold Allowed uncertainty
  */
-void AudioTuner::begin( float threshold, int16_t *coeff, uint8_t taps, uint8_t factor ) {
+void AudioTuner::begin( float threshold, SAMPLE *coeff, uint8_t taps, uint8_t factor ) {
     __disable_irq( );
     process_buffer      = true;
     yin_threshold       = threshold;
@@ -204,7 +208,8 @@ void AudioTuner::begin( float threshold, int16_t *coeff, uint8_t taps, uint8_t f
     decimation_shift    = log( factor ) / log( 2 );
     coeff_size          = taps;
     coeff_p             = coeff;
-    arm_fir_decimate_init_q15( &firDecimateInst, coeff_size, decimation_factor, coeff_p, &coeff_state[0], AUDIO_BLOCK_SAMPLES );
+
+    ARM_FIR_DECIMATE_(init)( &firDecimateInst, coeff_size, decimation_factor, coeff_p, &coeff_state[0], AUDIO_BLOCK_SAMPLES );
     __enable_irq( );
 }
 
@@ -251,9 +256,9 @@ float AudioTuner::probability( void ) {
  *  @param p    array pointer of coeffients.
  *  @param n    array size.
  */
-void AudioTuner::coeff( int16_t *p, int n ) {
-    //coeff_size = n;
-    //coeff_p = p;
+void AudioTuner::coeff( SAMPLE *p, int n ) {
+    coeff_size = n;
+    coeff_p = p;
     //arm_fir_decimate_init_q15(&firDecimateInst, coeff_size, 4, coeff_p, coeff_state, 128);
 }
 

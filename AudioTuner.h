@@ -25,6 +25,21 @@
 
 #include "AudioStream.h"
 #include "arm_math.h"
+
+#if !defined(SAMPLE)
+#define SAMPLE int16_t
+#endif
+
+//
+// To use arm_fir_decimate routines for differing sample sizes, we have a macro to
+// parameterize the name of the function we call, based on sample size.
+//
+#if defined(TEENSYDUINO) || (defined(BITS_PER_SAMPLE) && (BITS_PER_SAMPLE==16))
+#define ARM_FIR_DECIMATE_(x) arm_fir_decimate_ ## x ## _q15
+#elif defined(ARDUINO_ARCH_RP2040) || (defined(BITS_PER_SAMPLE) && (BITS_PER_SAMPLE==32))
+#define ARM_FIR_DECIMATE_(x) arm_fir_decimate_ ## x ## _q31
+#endif
+
 /***********************************************************************
  *              Safe to adjust these values below                      *
  *                                                                     *
@@ -69,7 +84,7 @@ public:
      *  @param taps      number of coefficients, even
      *  @param factor    must be power of 2
      */
-    void begin( float threshold, int16_t *coeff, uint8_t taps, uint8_t factor );
+    void begin( float threshold, SAMPLE *coeff, uint8_t taps, uint8_t factor );
     
     /**
      *  sets threshold value
@@ -104,7 +119,7 @@ public:
      *
      *  @return none
      */
-    void coeff( int16_t *p, int n );
+    void coeff( SAMPLE *p, int n );
     
     /**
      *  disable yin
@@ -138,7 +153,7 @@ private:
      *
      *  @return none
      */
-    void process( int16_t *p );
+    void process( SAMPLE *p );
     
     /**
      *  Variables
@@ -146,12 +161,12 @@ private:
     float    periodicity, yin_threshold, data;
     uint64_t running_sum, yin_buffer[5], rs_buffer[5];
     uint16_t tau_global;
-    int16_t  AudioBuffer[AUDIO_GUITARTUNER_BLOCKS*AUDIO_BLOCK_SAMPLES] __attribute__ ( ( aligned ( 4 ) ) );
-    int16_t  coeff_state[AUDIO_BLOCK_SAMPLES + MAX_COEFF];
-    int16_t  *coeff_p;
+    SAMPLE  AudioBuffer[AUDIO_GUITARTUNER_BLOCKS*AUDIO_BLOCK_SAMPLES] __attribute__ ( ( aligned ( 4 ) ) );
+    SAMPLE  coeff_state[AUDIO_BLOCK_SAMPLES + MAX_COEFF];
+    SAMPLE  *coeff_p;
     uint8_t  yin_idx, state, coeff_size, decimation_factor, decimation_shift;
     volatile bool new_output, process_buffer, enabled;
     audio_block_t *inputQueueArray[1];
-    arm_fir_decimate_instance_q15 firDecimateInst;
+    ARM_FIR_DECIMATE_(instance) firDecimateInst;
 };
 #endif
